@@ -107,12 +107,7 @@ class RNDDQNAgent(DQNAgent):
         self.seed = seed
         # TODO: initialize the RND networks
         obs_space = env.observation_space
-        if isinstance(obs_space, gym.spaces.Box):
-            state_dim = obs_space.shape[0]
-        elif isinstance(obs_space, gym.spaces.Discrete):
-            state_dim = obs_space.n
-        else:
-            raise ValueError(f"Unsupported observation space: {obs_space}")
+        state_dim = obs_space.shape[0]
 
         self.rnd_hidden_size = rnd_hidden_size
         """self.random_network = nn.Sequential(
@@ -135,7 +130,7 @@ class RNDDQNAgent(DQNAgent):
         self.random_network = FlexNet(
             in_size=state_dim,
             hidden_size=rnd_hidden_size,
-            hidden_layers=rnd_n_layers,
+            hidden_layers=10,
             out_size=rnd_hidden_size,
         )
         self.predictor_network = FlexNet(
@@ -145,6 +140,8 @@ class RNDDQNAgent(DQNAgent):
             out_size=rnd_hidden_size,
         )
         self.optimizer = optim.Adam(self.predictor_network.parameters(), lr=rnd_lr)
+
+        self.random_network.eval()
 
         self.rnd_update_freq = rnd_update_freq
         self.rnd_reward_weight = rnd_reward_weight
@@ -161,9 +158,11 @@ class RNDDQNAgent(DQNAgent):
             Each is (state, action, reward, next_state, done, info).
         """
         # TODO: get states and next_states from the batch
-        states, actions, rewards, next_states, dones, info = zip(*training_batch)
+        # states, actions, rewards, next_states, dones, info = zip(*training_batch)
         # TODO: compute the MSE
-        states_tensor = torch.tensor(np.array(states), dtype=torch.float32)
+        # states_tensor = torch.tensor(np.array(states), dtype=torch.float32)
+        states = np.array([t[0] for t in training_batch])
+        states_tensor = torch.FloatTensor(states)
         with torch.no_grad():
             random_embeddings = self.random_network(states_tensor)
         predictor_embeddings = self.predictor_network(states_tensor)
@@ -195,7 +194,7 @@ class RNDDQNAgent(DQNAgent):
             predictor_embedding = self.predictor_network(state_tensor)
         # TODO: get error
         mse_error = nn.functional.mse_loss(random_embedding, predictor_embedding)
-        return mse_error.item() * self.rnd_reward_weight
+        return mse_error.item()
 
     def train(self, num_frames: int, eval_interval: int = 1000) -> None:
         """
@@ -210,6 +209,8 @@ class RNDDQNAgent(DQNAgent):
         """
         state, _ = self.env.reset()
         ep_reward = 0.0
+        ep_true_reward = 0.0
+        recent_true_rewards: List[float] = []
         recent_rewards: List[float] = []
         episode_rewards = []
         steps = []
@@ -221,12 +222,14 @@ class RNDDQNAgent(DQNAgent):
             next_state, reward, done, truncated, _ = self.env.step(action)
 
             # TODO: apply RND bonus
-            reward += self.get_rnd_bonus(state)
+            true_reward = reward
+            reward += self.get_rnd_bonus(next_state) * self.rnd_reward_weight
 
             # store and step
             self.buffer.add(state, action, reward, next_state, done or truncated, {})
             state = next_state
             ep_reward += reward
+            ep_true_reward += true_reward
 
             # update if ready
             if len(self.buffer) >= self.batch_size:
@@ -239,21 +242,23 @@ class RNDDQNAgent(DQNAgent):
             if done or truncated:
                 state, _ = self.env.reset()
                 recent_rewards.append(ep_reward)
+                recent_true_rewards.append(ep_true_reward)
                 episode_rewards.append(ep_reward)
                 steps.append(frame)
                 ep_reward = 0.0
                 # logging
                 if len(recent_rewards) % 10 == 0:
                     avg = np.mean(recent_rewards)
+                    avg_true = np.mean(recent_true_rewards)
                     print(
-                        f"Frame {frame}, AvgReward(10): {avg:.2f}, ε={self.epsilon():.3f}"
+                        f"Frame {frame}, AvgReward(10): {avg:.2f}, ε={self.epsilon():.3f}, AvgTrueReward(10): {avg_true:.2f}"
                     )
 
         # Saving to .csv for simplicity
         # Could also be e.g. npz
         print("Training complete.")
         training_data = pd.DataFrame({"steps": steps, "rewards": episode_rewards})
-        training_data.to_csv(f"training_data_seed_{self.seed}.csv", index=False)
+        training_data.to_csv(f"training_data_seed_{self.seed}_RNDDQN.csv", index=False)
 
 
 @hydra.main(config_path="../configs/agent/", config_name="dqn", version_base="1.1")
@@ -273,7 +278,9 @@ def main(cfg: DictConfig):
         epsilon_final=cfg.agent.epsilon_final,
         epsilon_decay=cfg.agent.epsilon_decay,
         target_update_freq=cfg.agent.target_update_freq,
-        seed=cfg.seed,
+        seed=0,
+        rnd_n_layers=2,
+        rnd_reward_weight=0.0,
     )
     agent.train(num_frames=cfg.train.num_frames, eval_interval=cfg.train.eval_interval)
 

@@ -7,6 +7,7 @@ from typing import Any, Dict, List, Tuple
 import gymnasium as gym
 import hydra
 import numpy as np
+import pandas as pd
 import torch
 import torch.nn as nn
 import torch.optim as optim
@@ -100,6 +101,7 @@ class DQNAgent(AbstractAgent):
         )
         self.env = env
         set_seed(env, seed)
+        self.seed = seed
 
         obs_dim = env.observation_space.shape[0]
         n_actions = env.action_space.n
@@ -264,6 +266,8 @@ class DQNAgent(AbstractAgent):
         state, _ = self.env.reset()
         ep_reward = 0.0
         recent_rewards: List[float] = []
+        episode_rewards = []
+        steps = []
 
         for frame in range(1, num_frames + 1):
             action = self.predict_action(state)
@@ -282,7 +286,9 @@ class DQNAgent(AbstractAgent):
             if done or truncated:
                 state, _ = self.env.reset()
                 recent_rewards.append(ep_reward)
+                episode_rewards.append(ep_reward)
                 ep_reward = 0.0
+                steps.append(frame)
                 # logging
                 if len(recent_rewards) % 10 == 0:
                     avg = np.mean(recent_rewards[-10:])
@@ -291,6 +297,8 @@ class DQNAgent(AbstractAgent):
                     )
 
         print("Training complete.")
+        training_data = pd.DataFrame({"steps": steps, "rewards": episode_rewards})
+        training_data.to_csv(f"training_data_seed_{self.seed}_DQN.csv", index=False)
 
 
 @hydra.main(config_path="../configs/agent/", config_name="dqn", version_base="1.1")
@@ -309,7 +317,7 @@ def main(cfg: DictConfig):
         epsilon_final=cfg.agent.epsilon_final,
         epsilon_decay=cfg.agent.epsilon_decay,
         target_update_freq=cfg.agent.target_update_freq,
-        seed=cfg.seed,
+        seed=3,
     )
 
     # 3) instantiate & train
