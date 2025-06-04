@@ -280,7 +280,7 @@ def main(cfg: DictConfig):
         target_update_freq=cfg.agent.target_update_freq,
         seed=0,
         rnd_n_layers=2,
-        rnd_reward_weight=0.0,
+        # rnd_reward_weight=0.0,
     )
     agent.train(num_frames=cfg.train.num_frames, eval_interval=cfg.train.eval_interval)
 
