@@ -4,12 +4,14 @@ from matplotlib import pyplot as plt
 from rliable import metrics
 from rliable.library import get_interval_estimates
 from rliable.plot_utils import plot_sample_efficiency_curve
-
+import os
+# Base directory = location of this script
+base_dir = os.path.dirname(os.path.abspath(__file__))
 n_seeds = 2
 # Read data from different runs
 # This is the toy data, you can also build a proper loop over your own runs.
-df_s0 = pd.read_csv("demo_data_seed_0.csv")
-df_s1 = pd.read_csv("demo_data_seed_1.csv")
+df_s0 = pd.read_csv(os.path.join(base_dir, "demo_data_seed_0.csv"))
+df_s1 = pd.read_csv(os.path.join(base_dir, "demo_data_seed_1.csv"))
 # Add a column to distinguish between seeds
 # You would do something similar for different algorithms
 df_s0["seed"] = 0

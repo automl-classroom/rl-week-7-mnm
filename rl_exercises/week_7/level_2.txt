@@ -1,0 +1,13 @@
+
+referring to Level_2_plots.png
+
+Intrinsic Rewards
+While the Intrinsic rewards start relatively high it decreases with more steps taken.
+This indicates that as the agent explores increasingly more, less states are novel
+and the prediction error between the random network and the predictor decreases.
+Thus novelty rewards are given at early stages and are reduced over time.
+
+
+Extrinsic Rewards
+Unlike intrinsic reward, the extrinsic reward does not show a clear upward trend.
+This could be due to insufficient exploitation or conflictiong reward signals between intrinsic and extrinsic rewards.
